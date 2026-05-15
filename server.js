@@ -7,7 +7,7 @@ app.use(express.json());
 
 let requests = [];
 
-const ADMIN_PASSWORD = "12345";
+const ADMIN_PASSWORD = "1113";
 
 // ------------------- HOME -------------------
 app.get("/", (req, res) => {
