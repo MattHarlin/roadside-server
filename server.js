@@ -1,7 +1,15 @@
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
+const mongoose = require("mongoose");
 
+mongoose.connect("mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin");
+
+const Request = mongoose.model("Request", {
+  name: String,
+  issue: String,
+  time: Date
+});
 const app = express();
 
 app.use(cors());
@@ -13,7 +21,7 @@ app.use(session({
   saveUninitialized: true
 }));
 
-let requests = [];
+
 
 // ------------------- HOME -------------------
 app.get("/", (req, res) => {
