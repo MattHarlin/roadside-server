@@ -12,7 +12,7 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 io.on("connection", (socket) => {
-  console.log("Client connected to live dashboard");
+  console.log("Client connected");
 });
 // ------------------- MIDDLEWARE -------------------
 app.use(cors());
