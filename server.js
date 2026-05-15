@@ -14,10 +14,7 @@ app.use(session({
   resave: false,
   saveUninitialized: true
 }));
-app.get("/api/requests", async (req, res) => {
-  const requests = await Request.find().sort({ time: -1 });
-  res.json(requests);
-});
+
 // ------------------- MONGODB -------------------
 mongoose.connect("mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin")
   .then(() => console.log("MongoDB connected"))
@@ -31,10 +28,52 @@ const Request = mongoose.model("Request", {
 });
 
 // ------------------- HOME -------------------
-app.get("/", (req, res) => {
-  res.send("Server running");
+app.get("/api/requests", async (req, res) => {
+  const requests = await Request.find().sort({ time: -1 });
+  res.json(requests);
 });
+app.get("/data", (req, res) => {
+  if (!req.session.auth) {
+    return res.send("<h2>Access denied. Please log in.</h2>");
+  }
 
+  res.send(`
+    <html>
+    <head>
+      <title>Live Dashboard</title>
+      <style>
+        body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+        .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
+      </style>
+    </head>
+
+    <body>
+      <h1>Live Service Requests</h1>
+      <div id="container"></div>
+
+      <script>
+        async function loadRequests() {
+          const res = await fetch("/api/requests");
+          const data = await res.json();
+
+          const container = document.getElementById("container");
+
+          container.innerHTML = data.map(r => \`
+            <div class="card">
+              <p><b>Name:</b> \${r.name}</p>
+              <p><b>Issue:</b> \${r.issue}</p>
+              <p><b>Time:</b> \${new Date(r.time).toLocaleString()}</p>
+            </div>
+          \`).join("");
+        }
+
+        loadRequests();
+        setInterval(loadRequests, 3000);
+      </script>
+    </body>
+    </html>
+  `);
+});
 // ------------------- CREATE REQUEST -------------------
 app.post("/request", async (req, res) => {
   const job = new Request({
