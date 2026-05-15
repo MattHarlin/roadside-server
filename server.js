@@ -48,9 +48,58 @@ app.get("/admin/requests", (req, res) => {
   }
 
   res.json(requests);
-});
 app.get("/data", (req, res) => {
-  res.json(requests);
+  let html = `
+  <html>
+  <head>
+    <title>Requests Dashboard</title>
+
+    <style>
+      body {
+        font-family: Arial;
+        padding: 20px;
+        background: #f4f4f4;
+      }
+
+      h1 {
+        text-align: center;
+      }
+
+      .card {
+        background: white;
+        padding: 15px;
+        margin: 10px auto;
+        max-width: 500px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      }
+
+      .label {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Service Requests</h1>
+  `;
+
+  requests.forEach(r => {
+    html += `
+      <div class="card">
+        <p><span class="label">Name:</span> ${r.name}</p>
+        <p><span class="label">Issue:</span> ${r.issue}</p>
+        <p><span class="label">Time:</span> ${r.time}</p>
+      </div>
+    `;
+  });
+
+  html += `
+  </body>
+  </html>
+  `;
+
+  res.send(html);
 });
 // ------------------- START SERVER -------------------
 const PORT = process.env.PORT || 3000;
