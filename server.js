@@ -58,7 +58,7 @@ app.get("/admin/requests", (req, res) => {
 });
 
 // ------------------- PUBLIC DATA PAGE -------------------
-const express = require("express");
+
 const cors = require("cors");
 const session = require("express-session");
 const app = express();
