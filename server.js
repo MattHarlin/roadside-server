@@ -166,33 +166,43 @@ app.get("/data", async (req, res) => {
     <h1>Live Service Requests</h1>
     <div id="container"></div>
 
-    <script src="/socket.io/socket.io.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 
-    <script>
-      const socket = io();
-      const container = document.getElementById("container");
+<script>
+  const socket = io();
+  const container = document.getElementById("container");
 
-      function addCard(r) {
-        const div = document.createElement("div");
-        div.className = "card";
-        div.innerHTML = \`
-          <p><b>Name:</b> \${r.name}</p>
-          <p><b>Issue:</b> \${r.issue}</p>
-          <p><b>Time:</b> \${new Date(r.time).toLocaleString()}</p>
-        \`;
-        container.prepend(div);
-      }
+  function addCard(r) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <p><b>Name:</b> ${r.name}</p>
+      <p><b>Issue:</b> ${r.issue}</p>
+      <p><b>Time:</b> ${new Date(r.time).toLocaleString()}</p>
+    `;
+    container.prepend(div);
+  }
 
-      socket.on("new-request", (data) => {
-        addCard(data);
-      });
+  // SOCKET LIVE UPDATES
+  socket.on("new-request", (data) => {
+    console.log("LIVE UPDATE:", data);
+    addCard(data);
+  });
 
-      fetch("/api/requests")
-        .then(res => res.json())
-        .then(data => {
-          data.reverse().forEach(addCard);
-        });
-    </script>
+  // INITIAL LOAD
+  async function load() {
+    const res = await fetch("/api/requests");
+    const data = await res.json();
+    container.innerHTML = "";
+    data.reverse().forEach(addCard);
+  }
+
+  load();
+
+  // 🔥 BACKUP AUTO REFRESH (EVERY 5 SECONDS)
+  setInterval(load, 5000);
+</script>
+  
 
   </body>
   </html>
