@@ -57,7 +57,41 @@ app.get("/admin/requests", (req, res) => {
 
   res.json(requests);
 });
+app.get("/login", (req, res) => {
+  res.send(`
+    <html>
+    <head>
+      <title>Admin Login</title>
+    </head>
+    <body style="font-family: Arial; padding: 40px;">
+      <h2>Admin Login</h2>
 
+      <input id="password" type="password" placeholder="Enter password" />
+      <button onclick="login()">Login</button>
+
+      <p id="msg"></p>
+
+      <script>
+        async function login() {
+          const password = document.getElementById("password").value;
+
+          const res = await fetch("/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password })
+          });
+
+          if (res.ok) {
+            document.getElementById("msg").innerText = "Login success! Go to /data";
+          } else {
+            document.getElementById("msg").innerText = "Wrong password";
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
 // ------------------- PUBLIC DATA PAGE -------------------
 app.get("/data", (req, res) => {
   if (!req.session.auth) {
