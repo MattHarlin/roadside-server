@@ -12,7 +12,16 @@ app.get("/", (req, res) => {
 });
 
 app.post("/request", (req, res) => {
-  console.log("Job request:", req.body);
+  const job = {
+    id: Date.now(),
+    name: req.body.name,
+    issue: req.body.issue,
+    time: new Date()
+  };
+
+  requests.push(job);
+
+  console.log("Job request:", job);
   res.json({ status: "received" });
 });
 
@@ -20,4 +29,7 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
+});
+app.get("/admin/requests", (req, res) => {
+  res.json(requests);
 });
