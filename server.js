@@ -1,9 +1,12 @@
 const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
+
 const app = express();
+
 app.use(cors());
 app.use(express.json());
+
 app.use(session({
   secret: "my-secret-key",
   resave: false,
@@ -11,55 +14,6 @@ app.use(session({
 }));
 
 let requests = [];
-
-const ADMIN_PASSWORD = "1113";
-
-// ------------------- HOME -------------------
-app.get("/", (req, res) => {
-  res.send("Server running");
-});
-
-// ------------------- CREATE REQUEST -------------------
-app.post("/request", (req, res) => {
-  const job = {
-    id: Date.now(),
-    name: req.body.name,
-    issue: req.body.issue,
-    time: new Date()
-  };
-
-  requests.push(job);
-
-  console.log("Job request:", job);
-  res.json({ status: "received" });
-});
-
-// ------------------- ADMIN LOGIN -------------------
-app.post("/admin/login", (req, res) => {
-  const { password } = req.body;
-
-  if (password === "1113") {
-    req.session.auth = true;
-    return res.json({ success: true });
-  }
-
-  res.status(401).json({ success: false });
-});
-
-// ------------------- ADMIN GET REQUESTS -------------------
-app.get("/admin/requests", (req, res) => {
-  const auth = req.headers.authorization;
-
-  if (auth !== "Bearer SECRET123") {
-    return res.status(403).json({ error: "Unauthorized" });
-  }
-
-  res.json(requests);
-});
-
-// ------------------- PUBLIC DATA PAGE -------------------
-
-
 
 // ------------------- HOME -------------------
 app.get("/", (req, res) => {
@@ -121,7 +75,7 @@ app.get("/data", (req, res) => {
   </head>
   <body>
     <h1>Service Requests</h1>
-  `; 
+  `;
 
   requests.forEach(r => {
     html += `
@@ -144,10 +98,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
-
-// ------------------- START SERVER -------------------
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+  
