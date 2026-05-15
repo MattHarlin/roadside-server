@@ -134,7 +134,7 @@ app.get("/data", (req, res) => {
   </head>
   <body>
     <h1>Service Requests</h1>
-  `;
+  `; 
 
   requests.forEach(r => {
     html += `
