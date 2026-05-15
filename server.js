@@ -7,29 +7,30 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-  transports: ["websocket", "polling"]
-});
 
-io.on("connection", (socket) => {
-  console.log("Client connected");
+const io = new Server(server, {
+  cors: { origin: "*" }
 });
 
 // ------------------- MIDDLEWARE -------------------
 app.use(cors());
 app.use(express.json());
 
-app.use(session({
-  secret: "my-secret-key",
-  resave: false,
-  saveUninitialized: true
-}));
+app.use(
+  session({
+    secret: "my-secret-key",
+    resave: false,
+    saveUninitialized: true
+  })
+);
 
 // ------------------- MONGODB -------------------
-mongoose.connect("mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin")
+mongoose
+  .connect(
+    "mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin"
+  )
   .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log(err));
+  .catch((err) => console.log(err));
 
 // ------------------- MODEL -------------------
 const Request = mongoose.model("Request", {
@@ -38,78 +39,15 @@ const Request = mongoose.model("Request", {
   time: Date
 });
 
-// ------------------- HOME -------------------
+// ------------------- SOCKET -------------------
+io.on("connection", () => {
+  console.log("Client connected");
+});
+
+// ------------------- API -------------------
 app.get("/api/requests", async (req, res) => {
   const requests = await Request.find().sort({ time: -1 });
   res.json(requests);
-});
-app.get("/data", async (req, res) => {
-  if (!req.session.auth) {
-    return res.send("<h2>Access denied. Please log in.</h2>");
-  }
-
-res.send(`
-<html>
-<head>
-  <title>Dashboard</title>
-  <style>
-    body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-    .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
-  </style>
-</head>
-
-<body>
-  <h1>Requests</h1>
-  <div id="container"></div>
-
-  <script src="/socket.io/socket.io.js"></script>
-
-  <script>
-    const socket = io();
-    const container = document.getElementById("container");
-
-    function addCard(r) {
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `
-        <p><b>Name:</b> ${r.name}</p>
-        <p><b>Issue:</b> ${r.issue}</p>
-        <p><b>Time:</b> ${new Date(r.time).toLocaleString()}</p>
-      `;
-      container.prepend(div);
-    }
-
-    socket.on("new-request", (data) => {
-      console.log("LIVE UPDATE:", data);
-      addCard(data);
-    });
-
-    fetch("/api/requests")
-      .then(res => res.json())
-      .then(data => {
-        data.reverse().forEach(addCard);
-      });
-
-    setInterval(async () => {
-      const res = await fetch("/api/requests");
-      const data = await res.json();
-      container.innerHTML = "";
-      data.reverse().forEach(addCard);
-    }, 5000);
-  </script>
-
-</body>
-</html>
-`);
-
-  <body>
-    <h1>Live Service Requests</h1>
-    <div id="container"></div>
-
-   
-  </body>
-  </html>
-  `);
 });
 
 // ------------------- CREATE REQUEST -------------------
@@ -122,43 +60,15 @@ app.post("/request", async (req, res) => {
 
   await job.save();
 
-  // 🔥 SEND LIVE UPDATE TO ALL CLIENTS
-io.emit("new-request", {
-  name: job.name,
-  issue: job.issue,
-  time: job.time
-});
-// ------------------- ADMIN LOGIN -------------------
-app.post("/admin/login", (req, res) => {
-  const { password } = req.body;
+  io.emit("new-request", job);
 
-  if (password === "1113") {
-    req.session.auth = true;
-    return res.json({ success: true });
-  }
-
-  res.status(401).json({ success: false });
+  res.json({ status: "saved" });
 });
 
-// ------------------- ADMIN API (JSON) -------------------
-app.get("/admin/requests", async (req, res) => {
-  const auth = req.headers.authorization;
-
-  if (auth !== "Bearer SECRET123") {
-    return res.status(403).json({ error: "Unauthorized" });
-  }
-
-  const data = await Request.find();
-  res.json(data);
-});
-
-// ------------------- LOGIN PAGE -------------------
+// ------------------- LOGIN -------------------
 app.get("/login", (req, res) => {
   res.send(`
     <html>
-    <head>
-      <title>Admin Login</title>
-    </head>
     <body style="font-family: Arial; padding: 40px;">
       <h2>Admin Login</h2>
 
@@ -189,7 +99,19 @@ app.get("/login", (req, res) => {
   `);
 });
 
-// ------------------- ADMIN DASHBOARD -------------------
+// ------------------- LOGIN API -------------------
+app.post("/admin/login", (req, res) => {
+  const { password } = req.body;
+
+  if (password === "1113") {
+    req.session.auth = true;
+    return res.json({ success: true });
+  }
+
+  res.status(401).json({ success: false });
+});
+
+// ------------------- DASHBOARD -------------------
 app.get("/data", async (req, res) => {
   if (!req.session.auth) {
     return res.send("<h2>Access denied. Please log in.</h2>");
@@ -209,52 +131,46 @@ app.get("/data", async (req, res) => {
     <h1>Live Service Requests</h1>
     <div id="container"></div>
 
-<script src="/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
 
-<script>
-  const socket = io();
-  const container = document.getElementById("container");
+    <script>
+      const socket = io();
+      const container = document.getElementById("container");
 
-  function addCard(r) {
-    const div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML = `
-      <p><b>Name:</b> ${r.name}</p>
-      <p><b>Issue:</b> ${r.issue}</p>
-      <p><b>Time:</b> ${new Date(r.time).toLocaleString()}</p>
-    `;
-    container.prepend(div);
-  }
+      function addCard(r) {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = \`
+          <p><b>Name:</b> \${r.name}</p>
+          <p><b>Issue:</b> \${r.issue}</p>
+          <p><b>Time:</b> \${new Date(r.time).toLocaleString()}</p>
+        \`;
+        container.prepend(div);
+      }
 
-  // SOCKET LIVE UPDATES
-  socket.on("new-request", (data) => {
-    console.log("LIVE UPDATE:", data);
-    addCard(data);
-  });
+      socket.on("new-request", (data) => {
+        addCard(data);
+      });
 
-  // INITIAL LOAD
-  async function load() {
-    const res = await fetch("/api/requests");
-    const data = await res.json();
-    container.innerHTML = "";
-    data.reverse().forEach(addCard);
-  }
+      async function load() {
+        const res = await fetch("/api/requests");
+        const data = await res.json();
+        container.innerHTML = "";
+        data.reverse().forEach(addCard);
+      }
 
-  load();
-
-  // 🔥 BACKUP AUTO REFRESH (EVERY 5 SECONDS)
-  setInterval(load, 5000);
-</script>
-  
+      load();
+      setInterval(load, 5000);
+    </script>
 
   </body>
   </html>
   `);
 });
 
-// ------------------- START SERVER -------------------
+// ------------------- SERVER START -------------------
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
   console.log("Server running on port", PORT);
-}); 
+});
