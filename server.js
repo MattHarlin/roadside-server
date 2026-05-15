@@ -7,13 +7,15 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: { origin: "*" },
+  transports: ["websocket", "polling"]
 });
+
 io.on("connection", (socket) => {
   console.log("Client connected");
 });
+
 // ------------------- MIDDLEWARE -------------------
 app.use(cors());
 app.use(express.json());
@@ -65,10 +67,7 @@ app.get("/data", async (req, res) => {
   </html>
   `);
 });
-const io = new Server(server, {
-  cors: { origin: "*" },
-  transports: ["websocket", "polling"]
-});
+
 // ------------------- CREATE REQUEST -------------------
 app.post("/request", async (req, res) => {
   const job = new Request({
