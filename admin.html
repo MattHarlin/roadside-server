@@ -1,0 +1,20 @@
+<h1>Admin Dashboard</h1>
+<div id="list"></div>
+
+<script>
+async function loadRequests() {
+  const res = await fetch("https://roadside-server.onrender.com/admin/requests");
+  const data = await res.json();
+
+  document.getElementById("list").innerHTML = data.map(r => `
+    <div style="border:1px solid #ccc; margin:10px; padding:10px;">
+      <p><b>Name:</b> ${r.name}</p>
+      <p><b>Issue:</b> ${r.issue}</p>
+      <p><b>Time:</b> ${r.time}</p>
+    </div>
+  `).join("");
+}
+
+loadRequests();
+setInterval(loadRequests, 5000);
+</script>
