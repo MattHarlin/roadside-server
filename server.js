@@ -70,24 +70,25 @@ app.get("/login", (req, res) => {
       <button onclick="login()">Login</button>
 
       <p id="msg"></p>
+<script>
+  async function login() {
+    const password = document.getElementById("password").value;
 
-      <script>
-        async function login() {
-          const password = document.getElementById("password").value;
+    const res = await fetch("/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
 
-          const res = await fetch("/admin/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password })
-          });
-
-          if (res.ok) {
-            document.getElementById("msg").innerText = "Login success! Go to /data";
-          } else {
-            document.getElementById("msg").innerText = "Wrong password";
-          }
-        }
-      </script>
+    if (res.ok) {
+      // 👇 AUTO REDIRECT HERE
+      window.location.href = "/data";
+    } else {
+      document.getElementById("msg").innerText = "Wrong password";
+    }
+  }
+</script>
+     
     </body>
     </html>
   `);
