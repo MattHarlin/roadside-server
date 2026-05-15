@@ -50,7 +50,9 @@ app.get("/admin/requests", (req, res) => {
 
   res.json(requests);
 });
-
+app.get("/data", (req, res) => {
+  res.json(requests);
+});
 // ------------------- START SERVER -------------------
 const PORT = process.env.PORT || 3000;
 
