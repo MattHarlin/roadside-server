@@ -12,7 +12,7 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-// ------------------- MIDDLEWARE -------------------
+// ---------------- MIDDLEWARE ----------------
 app.use(cors());
 app.use(express.json());
 
@@ -24,7 +24,7 @@ app.use(
   })
 );
 
-// ------------------- MONGODB -------------------
+// ---------------- MONGODB ----------------
 mongoose
   .connect(
     "mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin"
@@ -32,25 +32,25 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log(err));
 
-// ------------------- MODEL -------------------
+// ---------------- MODEL ----------------
 const Request = mongoose.model("Request", {
   name: String,
   issue: String,
   time: Date
 });
 
-// ------------------- SOCKET -------------------
-io.on("connection", () => {
-  console.log("Client connected");
+// ---------------- HOME ----------------
+app.get("/", (req, res) => {
+  res.send("Server running");
 });
 
-// ------------------- API -------------------
+// ---------------- API GET ----------------
 app.get("/api/requests", async (req, res) => {
-  const requests = await Request.find().sort({ time: -1 });
-  res.json(requests);
+  const data = await Request.find().sort({ time: -1 });
+  res.json(data);
 });
 
-// ------------------- CREATE REQUEST -------------------
+// ---------------- CREATE REQUEST ----------------
 app.post("/request", async (req, res) => {
   const job = new Request({
     name: req.body.name,
@@ -65,14 +65,26 @@ app.post("/request", async (req, res) => {
   res.json({ status: "saved" });
 });
 
-// ------------------- LOGIN -------------------
+// ---------------- LOGIN ----------------
+app.post("/admin/login", (req, res) => {
+  const { password } = req.body;
+
+  if (password === "1113") {
+    req.session.auth = true;
+    return res.json({ success: true });
+  }
+
+  res.status(401).json({ success: false });
+});
+
+// ---------------- LOGIN PAGE ----------------
 app.get("/login", (req, res) => {
   res.send(`
     <html>
     <body style="font-family: Arial; padding: 40px;">
       <h2>Admin Login</h2>
 
-      <input id="password" type="password" placeholder="Enter password" />
+      <input id="password" type="password" placeholder="Password" />
       <button onclick="login()">Login</button>
 
       <p id="msg"></p>
@@ -99,76 +111,62 @@ app.get("/login", (req, res) => {
   `);
 });
 
-// ------------------- LOGIN API -------------------
-app.post("/admin/login", (req, res) => {
-  const { password } = req.body;
-
-  if (password === "1113") {
-    req.session.auth = true;
-    return res.json({ success: true });
-  }
-
-  res.status(401).json({ success: false });
-});
-
-// ------------------- DASHBOARD -------------------
+// ---------------- DASHBOARD ----------------
 app.get("/data", async (req, res) => {
   if (!req.session.auth) {
     return res.send("<h2>Access denied. Please log in.</h2>");
   }
 
   res.send(`
-  <html>
-  <head>
-    <title>Live Dashboard</title>
-    <style>
-      body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-      .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
-    </style>
-  </head>
+    <html>
+    <head>
+      <title>Dashboard</title>
+      <style>
+        body { font-family: Arial; background: #f4f4f4; padding: 20px; }
+        .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
+      </style>
+    </head>
 
-  <body>
-    <h1>Live Service Requests</h1>
-    <div id="container"></div>
+    <body>
+      <h1>Service Requests</h1>
+      <div id="container"></div>
 
-    <script src="/socket.io/socket.io.js"></script>
+      <script src="/socket.io/socket.io.js"></script>
+      <script>
+        const socket = io();
+        const container = document.getElementById("container");
 
-    <script>
-      const socket = io();
-      const container = document.getElementById("container");
+        function addCard(r) {
+          const div = document.createElement("div");
+          div.className = "card";
+          div.innerHTML =
+            "<p><b>Name:</b> " + r.name + "</p>" +
+            "<p><b>Issue:</b> " + r.issue + "</p>" +
+            "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>";
 
-      function addCard(r) {
-        const div = document.createElement("div");
-        div.className = "card";
-        div.innerHTML = \`
-          <p><b>Name:</b> \${r.name}</p>
-          <p><b>Issue:</b> \${r.issue}</p>
-          <p><b>Time:</b> \${new Date(r.time).toLocaleString()}</p>
-        \`;
-        container.prepend(div);
-      }
+          container.prepend(div);
+        }
 
-      socket.on("new-request", (data) => {
-        addCard(data);
-      });
+        socket.on("new-request", (data) => {
+          addCard(data);
+        });
 
-      async function load() {
-        const res = await fetch("/api/requests");
-        const data = await res.json();
-        container.innerHTML = "";
-        data.reverse().forEach(addCard);
-      }
+        async function load() {
+          const res = await fetch("/api/requests");
+          const data = await res.json();
+          container.innerHTML = "";
+          data.forEach(addCard);
+        }
 
-      load();
-      setInterval(load, 5000);
-    </script>
-
-  </body>
-  </html>
+        load();
+        setInterval(load, 5000);
+      </script>
+    </body>
+    </html>
   `);
 });
 
-// ------------------- SERVER START -------------------
+// ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
