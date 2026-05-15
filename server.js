@@ -11,6 +11,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" }
 });
+io.on("connection", (socket) => {
+  console.log("Client connected to live dashboard");
+});
 // ------------------- MIDDLEWARE -------------------
 app.use(cors());
 app.use(express.json());
@@ -38,47 +41,33 @@ app.get("/api/requests", async (req, res) => {
   const requests = await Request.find().sort({ time: -1 });
   res.json(requests);
 });
-app.get("/data", (req, res) => {
+app.get("/data", async (req, res) => {
   if (!req.session.auth) {
     return res.send("<h2>Access denied. Please log in.</h2>");
   }
 
   res.send(`
-    <html>
-    <head>
-      <title>Live Dashboard</title>
-      <style>
-        body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-        .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
-      </style>
-    </head>
+  <html>
+  <head>
+    <title>Live Dashboard</title>
+    <style>
+      body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+      .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
+    </style>
+  </head>
 
-    <body>
-      <h1>Live Service Requests</h1>
-      <div id="container"></div>
+  <body>
+    <h1>Live Service Requests</h1>
+    <div id="container"></div>
 
-      <script>
-        async function loadRequests() {
-          const res = await fetch("/api/requests");
-          const data = await res.json();
-
-          const container = document.getElementById("container");
-
-          container.innerHTML = data.map(r => \`
-            <div class="card">
-              <p><b>Name:</b> \${r.name}</p>
-              <p><b>Issue:</b> \${r.issue}</p>
-              <p><b>Time:</b> \${new Date(r.time).toLocaleString()}</p>
-            </div>
-          \`).join("");
-        }
-
-        loadRequests();
-        setInterval(loadRequests, 3000);
-      </script>
-    </body>
-    </html>
+   
+  </body>
+  </html>
   `);
+});
+const io = new Server(server, {
+  cors: { origin: "*" },
+  transports: ["websocket", "polling"]
 });
 // ------------------- CREATE REQUEST -------------------
 app.post("/request", async (req, res) => {
@@ -91,9 +80,10 @@ app.post("/request", async (req, res) => {
   await job.save();
 
   // 🔥 SEND LIVE UPDATE TO ALL CLIENTS
-  io.emit("new-request", job);
-
-  res.json({ status: "saved" });
+io.emit("new-request", {
+  name: job.name,
+  issue: job.issue,
+  time: job.time
 });
 // ------------------- ADMIN LOGIN -------------------
 app.post("/admin/login", (req, res) => {
@@ -162,63 +152,51 @@ app.get("/data", async (req, res) => {
     return res.send("<h2>Access denied. Please log in.</h2>");
   }
 
-  const requests = await Request.find();
-
-  let html = `
+  res.send(`
   <html>
   <head>
-    <title>Admin Dashboard</title>
+    <title>Live Dashboard</title>
     <style>
       body { font-family: Arial; padding: 20px; background: #f4f4f4; }
       .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
     </style>
   </head>
+
   <body>
-    <h1>Service Requests</h1>
-  `;
+    <h1>Live Service Requests</h1>
+    <div id="container"></div>
 
-  requests.forEach(r => {
-    html += `
-      <div class="card">
-        <p><b>Name:</b> ${r.name}</p>
-        <p><b>Issue:</b> ${r.issue}</p>
-        <p><b>Time:</b> ${r.time}</p>
-      </div>
-    `;
-  });
-  <script src="/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
 
-<script>
-  const socket = io();
+    <script>
+      const socket = io();
+      const container = document.getElementById("container");
 
-  const container = document.getElementById("container");
+      function addCard(r) {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = \`
+          <p><b>Name:</b> \${r.name}</p>
+          <p><b>Issue:</b> \${r.issue}</p>
+          <p><b>Time:</b> \${new Date(r.time).toLocaleString()}</p>
+        \`;
+        container.prepend(div);
+      }
 
-  function addCard(r) {
-    const div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML = `
-      <p><b>Name:</b> ${r.name}</p>
-      <p><b>Issue:</b> ${r.issue}</p>
-      <p><b>Time:</b> ${new Date(r.time).toLocaleString()}</p>
-    `;
-    container.prepend(div);
-  }
+      socket.on("new-request", (data) => {
+        addCard(data);
+      });
 
-  socket.on("new-request", (data) => {
-    addCard(data);
-  });
+      fetch("/api/requests")
+        .then(res => res.json())
+        .then(data => {
+          data.reverse().forEach(addCard);
+        });
+    </script>
 
-  // initial load
-  fetch("/api/requests")
-    .then(res => res.json())
-    .then(data => {
-      data.reverse().forEach(addCard);
-    });
-</script>
-
-  html += "</body></html>";
-
-  res.send(html);
+  </body>
+  </html>
+  `);
 });
 
 // ------------------- START SERVER -------------------
