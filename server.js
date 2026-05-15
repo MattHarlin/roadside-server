@@ -3,15 +3,9 @@ const cors = require("cors");
 const session = require("express-session");
 const mongoose = require("mongoose");
 
-mongoose.connect("mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin");
-
-const Request = mongoose.model("Request", {
-  name: String,
-  issue: String,
-  time: Date
-});
 const app = express();
 
+// ------------------- MIDDLEWARE -------------------
 app.use(cors());
 app.use(express.json());
 
@@ -21,7 +15,17 @@ app.use(session({
   saveUninitialized: true
 }));
 
+// ------------------- MONGODB -------------------
+mongoose.connect("mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin")
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.log(err));
 
+// ------------------- MODEL -------------------
+const Request = mongoose.model("Request", {
+  name: String,
+  issue: String,
+  time: Date
+});
 
 // ------------------- HOME -------------------
 app.get("/", (req, res) => {
@@ -29,18 +33,17 @@ app.get("/", (req, res) => {
 });
 
 // ------------------- CREATE REQUEST -------------------
-app.post("/request", (req, res) => {
-  const job = {
-    id: Date.now(),
+app.post("/request", async (req, res) => {
+  const job = new Request({
     name: req.body.name,
     issue: req.body.issue,
     time: new Date()
-  };
+  });
 
-  requests.push(job);
+  await job.save();
 
-  console.log("Job request:", job);
-  res.json({ status: "received" });
+  console.log("Saved:", job);
+  res.json({ status: "saved" });
 });
 
 // ------------------- ADMIN LOGIN -------------------
@@ -55,16 +58,19 @@ app.post("/admin/login", (req, res) => {
   res.status(401).json({ success: false });
 });
 
-// ------------------- ADMIN GET REQUESTS -------------------
-app.get("/admin/requests", (req, res) => {
+// ------------------- ADMIN API (JSON) -------------------
+app.get("/admin/requests", async (req, res) => {
   const auth = req.headers.authorization;
 
   if (auth !== "Bearer SECRET123") {
     return res.status(403).json({ error: "Unauthorized" });
   }
 
-  res.json(requests);
+  const data = await Request.find();
+  res.json(data);
 });
+
+// ------------------- LOGIN PAGE -------------------
 app.get("/login", (req, res) => {
   res.send(`
     <html>
@@ -78,34 +84,36 @@ app.get("/login", (req, res) => {
       <button onclick="login()">Login</button>
 
       <p id="msg"></p>
-<script>
-  async function login() {
-    const password = document.getElementById("password").value;
 
-    const res = await fetch("/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password })
-    });
+      <script>
+        async function login() {
+          const password = document.getElementById("password").value;
 
-    if (res.ok) {
-      // 👇 AUTO REDIRECT HERE
-      window.location.href = "/data";
-    } else {
-      document.getElementById("msg").innerText = "Wrong password";
-    }
-  }
-</script>
-     
+          const res = await fetch("/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password })
+          });
+
+          if (res.ok) {
+            window.location.href = "/data";
+          } else {
+            document.getElementById("msg").innerText = "Wrong password";
+          }
+        }
+      </script>
     </body>
     </html>
   `);
 });
-// ------------------- PUBLIC DATA PAGE -------------------
-app.get("/data", (req, res) => {
+
+// ------------------- ADMIN DASHBOARD -------------------
+app.get("/data", async (req, res) => {
   if (!req.session.auth) {
     return res.send("<h2>Access denied. Please log in.</h2>");
   }
+
+  const requests = await Request.find();
 
   let html = `
   <html>
@@ -141,4 +149,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
-  
