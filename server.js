@@ -1,16 +1,20 @@
-let requests = [];
 const express = require("express");
 const cors = require("cors");
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
+let requests = [];
+
+const ADMIN_PASSWORD = "12345";
+
+// ------------------- HOME -------------------
 app.get("/", (req, res) => {
   res.send("Server running");
 });
 
+// ------------------- CREATE REQUEST -------------------
 app.post("/request", (req, res) => {
   const job = {
     id: Date.now(),
@@ -25,11 +29,31 @@ app.post("/request", (req, res) => {
   res.json({ status: "received" });
 });
 
+// ------------------- ADMIN LOGIN -------------------
+app.post("/admin/login", (req, res) => {
+  const { password } = req.body;
+
+  if (password === ADMIN_PASSWORD) {
+    return res.json({ success: true });
+  }
+
+  res.status(401).json({ success: false });
+});
+
+// ------------------- ADMIN GET REQUESTS -------------------
+app.get("/admin/requests", (req, res) => {
+  const auth = req.headers.authorization;
+
+  if (auth !== "Bearer SECRET123") {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  res.json(requests);
+});
+
+// ------------------- START SERVER -------------------
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
-});
-app.get("/admin/requests", (req, res) => {
-  res.json(requests);
 });
