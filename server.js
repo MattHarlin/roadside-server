@@ -80,7 +80,7 @@ app.get("/data", (req, res) => {
     html += `
       <div class="card">
         <p><b>Name:</b> ${r.name}</p>
-        <p><b>Issue:</b> ${r.phone#}</p>
+        <p><b>Issue:</b> ${r.issue}</p>
         <p><b>Time:</b> ${r.time}</p>
       </div>
     `;
