@@ -14,7 +14,10 @@ app.use(session({
   resave: false,
   saveUninitialized: true
 }));
-
+app.get("/api/requests", async (req, res) => {
+  const requests = await Request.find().sort({ time: -1 });
+  res.json(requests);
+});
 // ------------------- MONGODB -------------------
 mongoose.connect("mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin")
   .then(() => console.log("MongoDB connected"))
