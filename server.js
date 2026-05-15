@@ -48,15 +48,59 @@ app.get("/data", async (req, res) => {
     return res.send("<h2>Access denied. Please log in.</h2>");
   }
 
-  res.send(`
-  <html>
-  <head>
-    <title>Live Dashboard</title>
-    <style>
-      body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-      .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
-    </style>
-  </head>
+res.send(`
+<html>
+<head>
+  <title>Dashboard</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+    .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
+  </style>
+</head>
+
+<body>
+  <h1>Requests</h1>
+  <div id="container"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    const socket = io();
+    const container = document.getElementById("container");
+
+    function addCard(r) {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <p><b>Name:</b> ${r.name}</p>
+        <p><b>Issue:</b> ${r.issue}</p>
+        <p><b>Time:</b> ${new Date(r.time).toLocaleString()}</p>
+      `;
+      container.prepend(div);
+    }
+
+    socket.on("new-request", (data) => {
+      console.log("LIVE UPDATE:", data);
+      addCard(data);
+    });
+
+    fetch("/api/requests")
+      .then(res => res.json())
+      .then(data => {
+        data.reverse().forEach(addCard);
+      });
+
+    setInterval(async () => {
+      const res = await fetch("/api/requests");
+      const data = await res.json();
+      container.innerHTML = "";
+      data.reverse().forEach(addCard);
+    }, 5000);
+  </script>
+
+</body>
+</html>
+`);
 
   <body>
     <h1>Live Service Requests</h1>
