@@ -2,9 +2,15 @@ const express = require("express");
 const cors = require("cors");
 const session = require("express-session");
 const mongoose = require("mongoose");
+const http = require("http");
+const { Server } = require("socket.io");
 
 const app = express();
+const server = http.createServer(app);
 
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
 // ------------------- MIDDLEWARE -------------------
 app.use(cors());
 app.use(express.json());
@@ -84,10 +90,11 @@ app.post("/request", async (req, res) => {
 
   await job.save();
 
-  console.log("Saved:", job);
+  // 🔥 SEND LIVE UPDATE TO ALL CLIENTS
+  io.emit("new-request", job);
+
   res.json({ status: "saved" });
 });
-
 // ------------------- ADMIN LOGIN -------------------
 app.post("/admin/login", (req, res) => {
   const { password } = req.body;
@@ -179,6 +186,35 @@ app.get("/data", async (req, res) => {
       </div>
     `;
   });
+  <script src="/socket.io/socket.io.js"></script>
+
+<script>
+  const socket = io();
+
+  const container = document.getElementById("container");
+
+  function addCard(r) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <p><b>Name:</b> ${r.name}</p>
+      <p><b>Issue:</b> ${r.issue}</p>
+      <p><b>Time:</b> ${new Date(r.time).toLocaleString()}</p>
+    `;
+    container.prepend(div);
+  }
+
+  socket.on("new-request", (data) => {
+    addCard(data);
+  });
+
+  // initial load
+  fetch("/api/requests")
+    .then(res => res.json())
+    .then(data => {
+      data.reverse().forEach(addCard);
+    });
+</script>
 
   html += "</body></html>";
 
@@ -188,6 +224,6 @@ app.get("/data", async (req, res) => {
 // ------------------- START SERVER -------------------
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log("Server running on port", PORT);
-});
+}); 
