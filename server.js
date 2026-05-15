@@ -28,7 +28,6 @@ app.post("/request", (req, res) => {
   console.log("Job request:", job);
   res.json({ status: "received" });
 });
-
 // ------------------- ADMIN LOGIN -------------------
 app.post("/admin/login", (req, res) => {
   const { password } = req.body;
