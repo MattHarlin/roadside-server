@@ -53,26 +53,28 @@ app.get("/admin/requests", (req, res) => {
 
 // ------------------- PUBLIC DATA PAGE -------------------
 app.get("/data", (req, res) => {
+  const password = req.query.password;
+
+  if (password !== "1113") {
+    return res.send(`
+      <h2>Access Denied</h2>
+      <p>Missing or incorrect password</p>
+    `);
+  }
+
   let html = `
   <html>
   <head>
-    <title>Requests Dashboard</title>
+    <title>Admin Dashboard</title>
     <style>
-      body {
-        font-family: Arial;
-        padding: 20px;
-        background: #f4f4f4;
-      }
-      h1 {
-        text-align: center;
-      }
+      body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+      h1 { text-align: center; }
       .card {
         background: white;
         padding: 15px;
         margin: 10px auto;
         max-width: 500px;
         border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       }
     </style>
   </head>
@@ -90,10 +92,7 @@ app.get("/data", (req, res) => {
     `;
   });
 
-  html += `
-  </body>
-  </html>
-  `;
+  html += "</body></html>";
 
   res.send(html);
 });
