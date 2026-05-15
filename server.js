@@ -59,20 +59,7 @@ app.get("/admin/requests", (req, res) => {
 
 // ------------------- PUBLIC DATA PAGE -------------------
 
-const cors = require("cors");
-const session = require("express-session");
-const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(session({
-  secret: "my-secret-key",
-  resave: false,
-  saveUninitialized: true
-}));
 
-let requests = [];
-
-const ADMIN_PASSWORD = "1113";
 
 // ------------------- HOME -------------------
 app.get("/", (req, res) => {
