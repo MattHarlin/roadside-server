@@ -39,11 +39,19 @@ const Request = mongoose.model("Request", {
 });
 
 // ---------------- HOME ----------------
-app.get("/testdb", ...)
+app.get("/testdb", async (req, res) => {
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.send("MongoDB works");
+  } catch (err) {
+    console.log(err);
+    res.status(500).send(err.message);
+  }
+});
+
 app.get("/", (req, res) => {
   res.send("Server running");
 });
-
 // ---------------- API GET ----------------
 app.get("/api/requests", async (req, res) => {
   const data = await Request.find().sort({ time: -1 });
