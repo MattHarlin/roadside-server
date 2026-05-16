@@ -15,13 +15,15 @@ const JWT_SECRET = "change-this-to-a-long-random-string";
 // ---------------- MIDDLEWARE ----------------
 app.use(cors());
 app.use(express.json());
+
+// ✅ THIS IS WHAT MAKES CSS + HTML WORK
 app.use(express.static("public"));
 
 // ---------------- MONGODB ----------------
 mongoose
   .connect("mongodb+srv://mattharlin56_db_user:roadside-server@admin.u4zdgvy.mongodb.net/roadside?retryWrites=true&w=majority")
   .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log("MongoDB error:", err));
+  .catch((err) => console.log(err));
 
 // ---------------- MODEL ----------------
 const Request = mongoose.model("Request", {
@@ -40,9 +42,9 @@ function verifyToken(req, res, next) {
 
   try {
     const token = authHeader.split(" ")[1];
-    req.user = jwt.verify(token, JWT_SECRET);
+    jwt.verify(token, JWT_SECRET);
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
 }
@@ -52,65 +54,29 @@ app.get("/", (req, res) => {
   res.send("Server running");
 });
 
-// TEST DB
-app.get("/testdb", async (req, res) => {
-  try {
-    await mongoose.connection.db.admin().ping();
-    res.send("MongoDB works");
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
-});
-
-// ---------------- API ----------------
-
-// GET REQUESTS (protected)
+// ---------------- REQUEST API ----------------
 app.get("/api/requests", verifyToken, async (req, res) => {
-  try {
-    const data = await Request.find().sort({ time: -1 });
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const data = await Request.find().sort({ time: -1 });
+  res.json(data);
 });
 
-// CREATE REQUEST (public)
 app.post("/request", async (req, res) => {
-  try {
-    console.log("Incoming request:", req.body);
+  const job = new Request({
+    name: req.body.name,
+    issue: req.body.issue,
+    time: new Date()
+  });
 
-    const job = new Request({
-      name: req.body.name,
-      issue: req.body.issue,
-      time: new Date()
-    });
+  await job.save();
 
-    await job.save();
+  io.emit("new-request", job);
 
-    console.log("Saved request:", job);
-
-    io.emit("new-request", job);
-
-    res.json({ status: "saved", job });
-  } catch (err) {
-    console.log("POST ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
+  res.json({ success: true });
 });
 
-// DELETE REQUEST (protected)
 app.delete("/api/requests/:id", verifyToken, async (req, res) => {
-  try {
-    const deleted = await Request.findByIdAndDelete(req.params.id);
-
-    if (!deleted) {
-      return res.status(404).json({ error: "Not found" });
-    }
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  await Request.findByIdAndDelete(req.params.id);
+  res.json({ success: true });
 });
 
 // ---------------- LOGIN ----------------
@@ -118,11 +84,9 @@ app.post("/admin/login", (req, res) => {
   const { password } = req.body;
 
   if (password === "1113") {
-    const token = jwt.sign(
-      { role: "admin" },
-      JWT_SECRET,
-      { expiresIn: "2h" }
-    );
+    const token = jwt.sign({ role: "admin" }, JWT_SECRET, {
+      expiresIn: "2h"
+    });
 
     return res.json({ success: true, token });
   }
@@ -130,95 +94,93 @@ app.post("/admin/login", (req, res) => {
   res.status(401).json({ success: false });
 });
 
-// ---------------- LOGIN PAGE ----------------
-app.get("/login", (req, res) => {
+// ---------------- DASHBOARD PAGE ----------------
+app.get("/data", (req, res) => {
   res.send(`
     <html>
-    <body style="font-family: Arial; padding: 40px;">
-      <h2>Admin Login</h2>
+      <body>
+        <h1>Service Requests</h1>
+        <div id="container"></div>
 
-      <input id="password" type="password" placeholder="Password" />
-      <button onclick="login()">Login</button>
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+          const socket = io();
+          const container = document.getElementById("container");
+          const token = localStorage.getItem("token");
 
-      <p id="msg"></p>
+          if (!token) window.location.href = "/login";
 
-      <script>
-        async function login() {
-          const password = document.getElementById("password").value;
+          function addCard(r) {
+            const div = document.createElement("div");
 
-          const res = await fetch("/admin/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password })
-          });
+            div.innerHTML =
+              "<p><b>Name:</b> " + r.name + "</p>" +
+              "<p><b>Issue:</b> " + r.issue + "</p>" +
+              "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>" +
+              "<button onclick=\"deleteRequest('" + r._id + "')\">Delete</button>";
 
-          const data = await res.json();
-
-          if (res.ok) {
-            localStorage.setItem("token", data.token);
-            window.location.href = "/data";
-          } else {
-            document.getElementById("msg").innerText = "Wrong password";
+            container.prepend(div);
           }
-        }
-      </script>
-    </body>
+
+          async function deleteRequest(id) {
+            await fetch("/api/requests/" + id, {
+              method: "DELETE",
+              headers: {
+                Authorization: "Bearer " + token
+              }
+            });
+
+            location.reload();
+          }
+
+          socket.on("new-request", addCard);
+
+          fetch("/api/requests", {
+            headers: {
+              Authorization: "Bearer " + token
+            }
+          })
+          .then(res => res.json())
+          .then(data => data.forEach(addCard));
+        </script>
+      </body>
     </html>
   `);
 });
 
-// ---------------- DASHBOARD ----------------
-app.get("/data", (req, res) => {
+// ---------------- LOGIN PAGE ----------------
+app.get("/login", (req, res) => {
   res.send(`
     <html>
-    <body>
-      <h1>Service Requests</h1>
-      <div id="container"></div>
+      <body style="font-family: Arial; padding: 40px;">
+        <h2>Admin Login</h2>
 
-      <script src="/socket.io/socket.io.js"></script>
-      <script>
-        const socket = io();
-        const container = document.getElementById("container");
-        const token = localStorage.getItem("token");
+        <input id="password" type="password" placeholder="Password" />
+        <button onclick="login()">Login</button>
 
-        if (!token) {
-          window.location.href = "/login";
-        }
+        <p id="msg"></p>
 
-        function addCard(r) {
-          const div = document.createElement("div");
+        <script>
+          async function login() {
+            const password = document.getElementById("password").value;
 
-          div.innerHTML =
-            "<p><b>Name:</b> " + r.name + "</p>" +
-            "<p><b>Issue:</b> " + r.issue + "</p>" +
-            "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>" +
-            "<button onclick=\\"deleteRequest('" + r._id + "')\\">Delete</button>";
+            const res = await fetch("/admin/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password })
+            });
 
-          container.prepend(div);
-        }
+            const data = await res.json();
 
-        async function deleteRequest(id) {
-          await fetch("/api/requests/" + id, {
-            method: "DELETE",
-            headers: {
-              Authorization: "Bearer " + token
+            if (res.ok) {
+              localStorage.setItem("token", data.token);
+              window.location.href = "/data";
+            } else {
+              document.getElementById("msg").innerText = "Wrong password";
             }
-          });
-
-          location.reload();
-        }
-
-        socket.on("new-request", addCard);
-
-        fetch("/api/requests", {
-          headers: {
-            Authorization: "Bearer " + token
           }
-        })
-        .then(res => res.json())
-        .then(data => data.forEach(addCard));
-      </script>
-    </body>
+        </script>
+      </body>
     </html>
   `);
 });
