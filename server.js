@@ -15,14 +15,21 @@ const io = new Server(server, {
 // ---------------- MIDDLEWARE ----------------
 app.use(cors());
 app.use(express.json());
+// server.js
 
 app.use(
   session({
-    secret: "my-secret-key",
+    secret: "my-secret-key-change-this",
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: false, // keep false for Render HTTP (set true only with HTTPS + custom domain setup)
+      maxAge: 1000 * 60 * 60 * 2 // 2 hours login session
+    }
   })
 );
+
 
 // ---------------- MONGODB ----------------
 mongoose
@@ -39,6 +46,18 @@ const Request = mongoose.model("Request", {
 });
 
 // ---------------- HOME ----------------
+function requireAuth(req, res, next) {
+  if (!req.session.auth) {
+    return res.redirect("/login");
+  }
+  next();
+} 
+function requireAuthApi(req, res, next) {
+  if (!req.session.auth) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
 app.get("/testdb", async (req, res) => {
   try {
     await mongoose.connection.db.admin().ping();
@@ -120,58 +139,42 @@ app.get("/login", (req, res) => {
 });
 
 // ---------------- DASHBOARD ----------------
-app.get("/data", async (req, res) => {
-  if (!req.session.auth) {
-    return res.send("<h2>Access denied. Please log in.</h2>");
-  }
-
+app.get("/data", requireAuth, async (req, res) => {
   res.send(`
     <html>
-    <head>
-      <title>Dashboard</title>
-      <style>
-        body { font-family: Arial; background: #f4f4f4; padding: 20px; }
-        .card { background: white; padding: 15px; margin: 10px; border-radius: 10px; }
-      </style>
-    </head>
+      <body>
+        <h1>Service Requests</h1>
+        <a href="/logout">Logout</a>
+        <div id="container"></div>
 
-    <body>
-      <h1>Service Requests</h1>
-      <div id="container"></div>
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+          const socket = io();
+          const container = document.getElementById("container");
 
-      <script src="/socket.io/socket.io.js"></script>
-      <script>
-        const socket = io();
-        const container = document.getElementById("container");
+          function addCard(r) {
+            const div = document.createElement("div");
+            div.innerHTML =
+              "<p><b>Name:</b> " + r.name + "</p>" +
+              "<p><b>Issue:</b> " + r.issue + "</p>" +
+              "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>";
+            container.prepend(div);
+          }
 
-        function addCard(r) {
-          const div = document.createElement("div");
-          div.className = "card";
-          div.innerHTML =
-            "<p><b>Name:</b> " + r.name + "</p>" +
-            "<p><b>Issue:</b> " + r.issue + "</p>" +
-            "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>";
+          socket.on("new-request", addCard);
 
-          container.prepend(div);
-        }
-
-        socket.on("new-request", (data) => {
-          addCard(data);
-        });
-
-        async function load() {
-          const res = await fetch("/api/requests");
-          const data = await res.json();
-          container.innerHTML = "";
-          data.forEach(addCard);
-        }
-
-        load();
-        setInterval(load, 5000);
-      </script>
-    </body>
+          fetch("/api/requests")
+            .then(res => res.json())
+            .then(data => data.forEach(addCard));
+        </script>
+      </body>
     </html>
   `);
+});
+app.get("/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.redirect("/login");
+  });
 });
 
 // ---------------- START SERVER ----------------
