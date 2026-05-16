@@ -1,83 +1,78 @@
 const express = require("express");
 const cors = require("cors");
-const session = require("express-session");
+const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
 
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = "change-this-to-a-long-random-string";
 
 // ---------------- MIDDLEWARE ----------------
 app.use(cors());
 app.use(express.json());
-// server.js
-
-app.use(
-  session({
-    secret: "my-secret-key-change-this",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: false, // keep false for Render HTTP (set true only with HTTPS + custom domain setup)
-      maxAge: 1000 * 60 * 60 * 2 // 2 hours login session
-    }
-  })
-);
-
+app.use(express.static("public"));
 
 // ---------------- MONGODB ----------------
 mongoose
-  .connect(
-    "mongodb+srv://mattharlin56_db_user:roadside-server@admin.u4zdgvy.mongodb.net/roadside?retryWrites=true&w=majority"
-  )
+  .connect("mongodb+srv://mattharlin56_db_user:roadside-server@admin.u4zdgvy.mongodb.net/roadside?retryWrites=true&w=majority")
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log(err));
+
 // ---------------- MODEL ----------------
-const Request = mongoose.model("Request", {
-  name: String,
-  issue: String,
-  time: Date
+const Request = mongoose.model(
+  "Request",
+  new mongoose.Schema({
+    name: String,
+    issue: String,
+    time: Date
+  })
+);
+
+// ---------------- AUTH MIDDLEWARE ----------------
+function verifyToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "No token" });
+  }
+
+  try {
+    const token = authHeader.split(" ")[1];
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+// ---------------- ROUTES ----------------
+app.get("/", (req, res) => {
+  res.send("Server running");
 });
 
-// ---------------- HOME ----------------
-function requireAuth(req, res, next) {
-  if (!req.session.auth) {
-    return res.redirect("/login");
-  }
-  next();
-} 
-function requireAuthApi(req, res, next) {
-  if (!req.session.auth) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  next();
-}
 app.get("/testdb", async (req, res) => {
   try {
     await mongoose.connection.db.admin().ping();
     res.send("MongoDB works");
   } catch (err) {
-    console.log(err);
     res.status(500).send(err.message);
   }
 });
 
-app.get("/", (req, res) => {
-  res.send("Server running");
-});
-// ---------------- API GET ----------------
-app.get("/api/requests", async (req, res) => {
+// ---------------- API ----------------
+
+// GET ALL REQUESTS
+app.get("/api/requests", verifyToken, async (req, res) => {
   const data = await Request.find().sort({ time: -1 });
   res.json(data);
 });
 
-// ---------------- CREATE REQUEST ----------------
+// CREATE REQUEST (public)
 app.post("/request", async (req, res) => {
   const job = new Request({
     name: req.body.name,
@@ -86,10 +81,24 @@ app.post("/request", async (req, res) => {
   });
 
   await job.save();
-
   io.emit("new-request", job);
 
   res.json({ status: "saved" });
+});
+
+// DELETE REQUEST
+app.delete("/api/requests/:id", verifyToken, async (req, res) => {
+  try {
+    const deleted = await Request.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---------------- LOGIN ----------------
@@ -97,8 +106,11 @@ app.post("/admin/login", (req, res) => {
   const { password } = req.body;
 
   if (password === "1113") {
-    req.session.auth = true;
-    return res.json({ success: true });
+    const token = jwt.sign({ role: "admin" }, JWT_SECRET, {
+      expiresIn: "2h"
+    });
+
+    return res.json({ success: true, token });
   }
 
   res.status(401).json({ success: false });
@@ -126,7 +138,10 @@ app.get("/login", (req, res) => {
             body: JSON.stringify({ password })
           });
 
+          const data = await res.json();
+
           if (res.ok) {
+            localStorage.setItem("token", data.token);
             window.location.href = "/data";
           } else {
             document.getElementById("msg").innerText = "Wrong password";
@@ -139,47 +154,62 @@ app.get("/login", (req, res) => {
 });
 
 // ---------------- DASHBOARD ----------------
-app.get("/data", requireAuth, async (req, res) => {
+app.get("/data", (req, res) => {
   res.send(`
     <html>
-      <body>
-        <h1>Service Requests</h1>
-        <a href="/logout">Logout</a>
-        <div id="container"></div>
+    <body>
+      <h1>Service Requests</h1>
+      <div id="container"></div>
 
-        <script src="/socket.io/socket.io.js"></script>
-        <script>
-          const socket = io();
-          const container = document.getElementById("container");
+      <script src="/socket.io/socket.io.js"></script>
+      <script>
+        const socket = io();
+        const container = document.getElementById("container");
+        const token = localStorage.getItem("token");
 
-          function addCard(r) {
-            const div = document.createElement("div");
-            div.innerHTML =
-              "<p><b>Name:</b> " + r.name + "</p>" +
-              "<p><b>Issue:</b> " + r.issue + "</p>" +
-              "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>";
-            container.prepend(div);
+        if (!token) {
+          window.location.href = "/login";
+        }
+
+        function addCard(r) {
+          const div = document.createElement("div");
+
+          div.innerHTML =
+            "<p><b>Name:</b> " + r.name + "</p>" +
+            "<p><b>Issue:</b> " + r.issue + "</p>" +
+            "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>" +
+            "<button onclick=\"deleteRequest('" + r._id + "')\">Delete</button>";
+
+          container.prepend(div);
+        }
+
+        async function deleteRequest(id) {
+          await fetch("/api/requests/" + id, {
+            method: "DELETE",
+            headers: {
+              Authorization: "Bearer " + token
+            }
+          });
+
+          location.reload();
+        }
+
+        socket.on("new-request", addCard);
+
+        fetch("/api/requests", {
+          headers: {
+            Authorization: "Bearer " + token
           }
-
-          socket.on("new-request", addCard);
-
-          fetch("/api/requests")
-            .then(res => res.json())
-            .then(data => data.forEach(addCard));
-        </script>
-      </body>
+        })
+        .then(res => res.json())
+        .then(data => data.forEach(addCard));
+      </script>
+    </body>
     </html>
   `);
 });
-app.get("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.redirect("/login");
-  });
-});
 
 // ---------------- START SERVER ----------------
-const PORT = process.env.PORT || 3000;
-
 server.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
