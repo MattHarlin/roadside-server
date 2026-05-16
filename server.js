@@ -15,15 +15,13 @@ const JWT_SECRET = "change-this-to-a-long-random-string";
 // ---------------- MIDDLEWARE ----------------
 app.use(cors());
 app.use(express.json());
-
-// ✅ THIS IS WHAT MAKES CSS + HTML WORK
 app.use(express.static("public"));
 
 // ---------------- MONGODB ----------------
 mongoose
   .connect("mongodb+srv://mattharlin56_db_user:roadside-server@admin.u4zdgvy.mongodb.net/roadside?retryWrites=true&w=majority")
   .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .catch((err) => console.log("MongoDB error:", err));
 
 // ---------------- MODEL ----------------
 const Request = mongoose.model("Request", {
@@ -42,9 +40,9 @@ function verifyToken(req, res, next) {
 
   try {
     const token = authHeader.split(" ")[1];
-    jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
-  } catch {
+  } catch (err) {
     return res.status(401).json({ error: "Invalid token" });
   }
 }
@@ -54,29 +52,65 @@ app.get("/", (req, res) => {
   res.send("Server running");
 });
 
-// ---------------- REQUEST API ----------------
+// TEST DB
+app.get("/testdb", async (req, res) => {
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.send("MongoDB works");
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+// ---------------- API ----------------
+
+// GET REQUESTS (protected)
 app.get("/api/requests", verifyToken, async (req, res) => {
-  const data = await Request.find().sort({ time: -1 });
-  res.json(data);
+  try {
+    const data = await Request.find().sort({ time: -1 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// CREATE REQUEST (public)
 app.post("/request", async (req, res) => {
-  const job = new Request({
-    name: req.body.name,
-    issue: req.body.issue,
-    time: new Date()
-  });
+  try {
+    console.log("Incoming request:", req.body);
 
-  await job.save();
+    const job = new Request({
+      name: req.body.name,
+      issue: req.body.issue,
+      time: new Date()
+    });
 
-  io.emit("new-request", job);
+    await job.save();
 
-  res.json({ success: true });
+    console.log("Saved request:", job);
+
+    io.emit("new-request", job);
+
+    res.json({ status: "saved", job });
+  } catch (err) {
+    console.log("POST ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// DELETE REQUEST (protected)
 app.delete("/api/requests/:id", verifyToken, async (req, res) => {
-  await Request.findByIdAndDelete(req.params.id);
-  res.json({ success: true });
+  try {
+    const deleted = await Request.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---------------- LOGIN ----------------
@@ -84,9 +118,11 @@ app.post("/admin/login", (req, res) => {
   const { password } = req.body;
 
   if (password === "1113") {
-    const token = jwt.sign({ role: "admin" }, JWT_SECRET, {
-      expiresIn: "2h"
-    });
+    const token = jwt.sign(
+      { role: "admin" },
+      JWT_SECRET,
+      { expiresIn: "2h" }
+    );
 
     return res.json({ success: true, token });
   }
@@ -94,93 +130,95 @@ app.post("/admin/login", (req, res) => {
   res.status(401).json({ success: false });
 });
 
-// ---------------- DASHBOARD PAGE ----------------
-app.get("/data", (req, res) => {
-  res.send(`
-    <html>
-      <body>
-        <h1>Service Requests</h1>
-        <div id="container"></div>
-
-        <script src="/socket.io/socket.io.js"></script>
-        <script>
-          const socket = io();
-          const container = document.getElementById("container");
-          const token = localStorage.getItem("token");
-
-          if (!token) window.location.href = "/login";
-
-          function addCard(r) {
-            const div = document.createElement("div");
-
-            div.innerHTML =
-              "<p><b>Name:</b> " + r.name + "</p>" +
-              "<p><b>Issue:</b> " + r.issue + "</p>" +
-              "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>" +
-              "<button onclick=\"deleteRequest('" + r._id + "')\">Delete</button>";
-
-            container.prepend(div);
-          }
-
-          async function deleteRequest(id) {
-            await fetch("/api/requests/" + id, {
-              method: "DELETE",
-              headers: {
-                Authorization: "Bearer " + token
-              }
-            });
-
-            location.reload();
-          }
-
-          socket.on("new-request", addCard);
-
-          fetch("/api/requests", {
-            headers: {
-              Authorization: "Bearer " + token
-            }
-          })
-          .then(res => res.json())
-          .then(data => data.forEach(addCard));
-        </script>
-      </body>
-    </html>
-  `);
-});
-
 // ---------------- LOGIN PAGE ----------------
 app.get("/login", (req, res) => {
   res.send(`
     <html>
-      <body style="font-family: Arial; padding: 40px;">
-        <h2>Admin Login</h2>
+    <body style="font-family: Arial; padding: 40px;">
+      <h2>Admin Login</h2>
 
-        <input id="password" type="password" placeholder="Password" />
-        <button onclick="login()">Login</button>
+      <input id="password" type="password" placeholder="Password" />
+      <button onclick="login()">Login</button>
 
-        <p id="msg"></p>
+      <p id="msg"></p>
 
-        <script>
-          async function login() {
-            const password = document.getElementById("password").value;
+      <script>
+        async function login() {
+          const password = document.getElementById("password").value;
 
-            const res = await fetch("/admin/login", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ password })
-            });
+          const res = await fetch("/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password })
+          });
 
-            const data = await res.json();
+          const data = await res.json();
 
-            if (res.ok) {
-              localStorage.setItem("token", data.token);
-              window.location.href = "/data";
-            } else {
-              document.getElementById("msg").innerText = "Wrong password";
-            }
+          if (res.ok) {
+            localStorage.setItem("token", data.token);
+            window.location.href = "/data";
+          } else {
+            document.getElementById("msg").innerText = "Wrong password";
           }
-        </script>
-      </body>
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+// ---------------- DASHBOARD ----------------
+app.get("/data", (req, res) => {
+  res.send(`
+    <html>
+    <body>
+      <h1>Service Requests</h1>
+      <div id="container"></div>
+
+      <script src="/socket.io/socket.io.js"></script>
+      <script>
+        const socket = io();
+        const container = document.getElementById("container");
+        const token = localStorage.getItem("token");
+
+        if (!token) {
+          window.location.href = "/login";
+        }
+
+        function addCard(r) {
+          const div = document.createElement("div");
+
+          div.innerHTML =
+            "<p><b>Name:</b> " + r.name + "</p>" +
+            "<p><b>Issue:</b> " + r.issue + "</p>" +
+            "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>" +
+            "<button onclick=\\"deleteRequest('" + r._id + "')\\">Delete</button>";
+
+          container.prepend(div);
+        }
+
+        async function deleteRequest(id) {
+          await fetch("/api/requests/" + id, {
+            method: "DELETE",
+            headers: {
+              Authorization: "Bearer " + token
+            }
+          });
+
+          location.reload();
+        }
+
+        socket.on("new-request", addCard);
+
+        fetch("/api/requests", {
+          headers: {
+            Authorization: "Bearer " + token
+          }
+        })
+        .then(res => res.json())
+        .then(data => data.forEach(addCard));
+      </script>
+    </body>
     </html>
   `);
 });
