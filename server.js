@@ -21,19 +21,16 @@ app.use(express.static("public"));
 mongoose
   .connect("mongodb+srv://mattharlin56_db_user:roadside-server@admin.u4zdgvy.mongodb.net/roadside?retryWrites=true&w=majority")
   .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .catch((err) => console.log("MongoDB error:", err));
 
 // ---------------- MODEL ----------------
-const Request = mongoose.model(
-  "Request",
-  new mongoose.Schema({
-    name: String,
-    issue: String,
-    time: Date
-  })
-);
+const Request = mongoose.model("Request", {
+  name: String,
+  issue: String,
+  time: Date
+});
 
-// ---------------- AUTH MIDDLEWARE ----------------
+// ---------------- AUTH ----------------
 function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -45,7 +42,7 @@ function verifyToken(req, res, next) {
     const token = authHeader.split(" ")[1];
     req.user = jwt.verify(token, JWT_SECRET);
     next();
-  } catch {
+  } catch (err) {
     return res.status(401).json({ error: "Invalid token" });
   }
 }
@@ -55,6 +52,7 @@ app.get("/", (req, res) => {
   res.send("Server running");
 });
 
+// TEST DB
 app.get("/testdb", async (req, res) => {
   try {
     await mongoose.connection.db.admin().ping();
@@ -66,27 +64,41 @@ app.get("/testdb", async (req, res) => {
 
 // ---------------- API ----------------
 
-// GET ALL REQUESTS
+// GET REQUESTS (protected)
 app.get("/api/requests", verifyToken, async (req, res) => {
-  const data = await Request.find().sort({ time: -1 });
-  res.json(data);
+  try {
+    const data = await Request.find().sort({ time: -1 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // CREATE REQUEST (public)
 app.post("/request", async (req, res) => {
-  const job = new Request({
-    name: req.body.name,
-    issue: req.body.issue,
-    time: new Date()
-  });
+  try {
+    console.log("Incoming request:", req.body);
 
-  await job.save();
-  io.emit("new-request", job);
+    const job = new Request({
+      name: req.body.name,
+      issue: req.body.issue,
+      time: new Date()
+    });
 
-  res.json({ status: "saved" });
+    await job.save();
+
+    console.log("Saved request:", job);
+
+    io.emit("new-request", job);
+
+    res.json({ status: "saved", job });
+  } catch (err) {
+    console.log("POST ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// DELETE REQUEST
+// DELETE REQUEST (protected)
 app.delete("/api/requests/:id", verifyToken, async (req, res) => {
   try {
     const deleted = await Request.findByIdAndDelete(req.params.id);
@@ -106,9 +118,11 @@ app.post("/admin/login", (req, res) => {
   const { password } = req.body;
 
   if (password === "1113") {
-    const token = jwt.sign({ role: "admin" }, JWT_SECRET, {
-      expiresIn: "2h"
-    });
+    const token = jwt.sign(
+      { role: "admin" },
+      JWT_SECRET,
+      { expiresIn: "2h" }
+    );
 
     return res.json({ success: true, token });
   }
@@ -178,7 +192,7 @@ app.get("/data", (req, res) => {
             "<p><b>Name:</b> " + r.name + "</p>" +
             "<p><b>Issue:</b> " + r.issue + "</p>" +
             "<p><b>Time:</b> " + new Date(r.time).toLocaleString() + "</p>" +
-            "<button onclick=\"deleteRequest('" + r._id + "')\">Delete</button>";
+            "<button onclick=\\"deleteRequest('" + r._id + "')\\">Delete</button>";
 
           container.prepend(div);
         }
