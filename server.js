@@ -39,6 +39,7 @@ const Request = mongoose.model("Request", {
 });
 
 // ---------------- HOME ----------------
+app.get("/testdb", ...)
 app.get("/", (req, res) => {
   res.send("Server running");
 });
