@@ -27,11 +27,10 @@ app.use(
 // ---------------- MONGODB ----------------
 mongoose
   .connect(
-    "mongodb+srv://mattharlin56_db_user:boisemobilservices.com@admin.u4zdgvy.mongodb.net/?appName=admin"
+    "mongodb+srv://mattharlin56_db_user:roadside-server@admin.u4zdgvy.mongodb.net/roadside?retryWrites=true&w=majority"
   )
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log(err));
-
 // ---------------- MODEL ----------------
 const Request = mongoose.model("Request", {
   name: String,
