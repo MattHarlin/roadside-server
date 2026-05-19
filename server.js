@@ -1,3 +1,5 @@
+require('dotenv').config(); // load .env variables
+
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
@@ -10,7 +12,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = "change-this-to-a-long-random-string";
+const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret";
 
 // ---------------- MIDDLEWARE ----------------
 app.use(cors());
@@ -19,7 +21,7 @@ app.use(express.static("public"));
 
 // ---------------- MONGODB ----------------
 mongoose
-  .connect(process.env.)
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log("MongoDB error:", err));
 
