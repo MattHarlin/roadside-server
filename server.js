@@ -19,7 +19,7 @@ app.use(express.static("public"));
 
 // ---------------- MONGODB ----------------
 mongoose
-  .connect("mongodb+srv://mattharlin56_db_user:roadside-server@admin.u4zdgvy.mongodb.net/roadside?retryWrites=true&w=majority")
+  .connect(process.env.)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log("MongoDB error:", err));
 
@@ -28,6 +28,7 @@ const Request = mongoose.model("Request", {
   name: String,
   issue: String,
   time: Date
+
 });
 
 // ---------------- AUTH ----------------
