@@ -149,32 +149,38 @@ makeSelect.addEventListener("change", loadModels);
 yearSelect.addEventListener("change", loadModels);
 
 /* ---------------- ESTIMATE LOGIC ---------------- */
-function calculate() {
+async function calculate() {
 
-  const service = parseFloat(document.getElementById("service").value);
-  const distance = parseFloat(document.getElementById("distance").value) || 0;
-  const year = parseInt(document.getElementById("year").value) || 0;
+  const year = document.getElementById("year").value;
   const make = document.getElementById("make").value;
+  const model = document.getElementById("model").value;
+  const service = document.getElementById("service").value;
+  const distance = document.getElementById("distance").value;
 
-  let total = service;
+  const res = await fetch("/api/estimate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      year,
+      make,
+      model,
+      service,
+      distance
+    })
+  });
 
-  // distance
-  total += distance * 3;
+  const data = await res.json();
 
-  // age
-  const age = 2026 - year;
-  if (age > 15) total += 40;
-  else if (age > 10) total += 20;
-
-  // luxury brands
-  const luxury = ["bmw", "mercedes", "audi", "tesla"];
-  if (luxury.includes(make.toLowerCase())) {
-    total += 35;
+  if (data.estimate) {
+    document.getElementById("result").innerText =
+      "Estimated Price: $" + data.estimate.toFixed(2);
+  } else {
+    document.getElementById("result").innerText =
+      "Error calculating estimate";
   }
-
-  document.getElementById("result").innerText =
-    "Estimated Price: $" + total.toFixed(2);
-}
+} 
 
 /* ---------------- VIN PLACEHOLDER ---------------- */
 function decodeVIN() {
