@@ -5,6 +5,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const http = require("http");
+const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
 
 const app = express();
