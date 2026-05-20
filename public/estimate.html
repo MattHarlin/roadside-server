@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Estimate Calculator</title>
+
+<link rel="stylesheet" href="/admin.css">
+
+<style>
+.container {
+  max-width: 600px;
+  margin: auto;
+  padding: 20px;
+}
+
+input, select {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.result {
+  margin-top: 20px;
+  font-size: 22px;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Job Estimate Calculator</h1>
+
+<!-- VIN -->
+<input id="vin" placeholder="VIN (optional - future feature)" />
+<button onclick="decodeVIN()">Decode VIN (coming soon)</button>
+
+<hr>
+
+<!-- Year Make Model -->
+<select id="year">
+  <option value="">Year</option>
+</select>
+
+<select id="make">
+  <option value="">Make</option>
+</select>
+
+<select id="model">
+  <option value="">Model</option>
+</select>
+
+<hr>
+
+<!-- Service -->
+<select id="service">
+  <option value="50">Battery Boost - $50</option>
+  <option value="75">Flat Tire - $75</option>
+  <option value="100">Towing - $100</option>
+  <option value="65">Fuel Delivery - $65</option>
+</select>
+
+<!-- Distance -->
+<input type="number" id="distance" placeholder="Distance (miles)" />
+
+<button onclick="calculate()">Calculate Estimate</button>
+
+<div class="result" id="result"></div>
+
+</div>
+
+<script>
+/* --------------------------
+   BASIC YEAR POPULATION
+---------------------------*/
+const yearSelect = document.getElementById("year");
+
+for (let y = 2026; y >= 1980; y--) {
+  const opt = document.createElement("option");
+  opt.value = y;
+  opt.textContent = y;
+  yearSelect.appendChild(opt);
+}
+
+/* --------------------------
+   MAKE + MODEL PLACEHOLDERS
+   (we will connect API next step)
+---------------------------*/
+const makes = ["Toyota", "Honda", "Ford", "BMW", "Mercedes"];
+
+const makeSelect = document.getElementById("make");
+
+makes.forEach(m => {
+  const opt = document.createElement("option");
+  opt.value = m;
+  opt.textContent = m;
+  makeSelect.appendChild(opt);
+});
+
+document.getElementById("make").addEventListener("change", () => {
+
+  const modelSelect = document.getElementById("model");
+  modelSelect.innerHTML = "";
+
+  const models = ["Model A", "Model B", "Model C"];
+
+  models.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m;
+    modelSelect.appendChild(opt);
+  });
+});
+
+/* --------------------------
+   ESTIMATE LOGIC (FRONTEND)
+---------------------------*/
+function calculate() {
+
+  const service = parseFloat(document.getElementById("service").value);
+  const distance = parseFloat(document.getElementById("distance").value) || 0;
+  const year = parseInt(document.getElementById("year").value) || 0;
+  const make = document.getElementById("make").value;
+
+  let total = service;
+
+  // distance cost
+  total += distance * 3;
+
+  // vehicle age surcharge
+  const age = 2026 - year;
+
+  if (age > 15) total += 40;
+  else if (age > 10) total += 20;
+
+  // luxury brands
+  const luxury = ["bmw", "mercedes", "audi", "tesla"];
+  if (luxury.includes(make.toLowerCase())) {
+    total += 35;
+  }
+
+  document.getElementById("result").innerText =
+    "Estimated Price: $" + total.toFixed(2);
+}
+
+/* --------------------------
+   VIN PLACEHOLDER
+---------------------------*/
+function decodeVIN() {
+  alert("We will connect VIN API next step");
+}
+</script>
+
+</body>
+</html>
