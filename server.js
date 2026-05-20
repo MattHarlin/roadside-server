@@ -227,7 +227,71 @@ app.get("/data", (req, res) => {
     </html>
   `);
 });
+const Estimate = mongoose.model("Estimate", {
+  vin: String,
+  year: String,
+  make: String,
+  model: String,
 
+  service: String,
+  distance: Number,
+
+  estimate: Number,
+
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+app.post("/api/estimate", async (req, res) => {
+  try {
+
+    const {
+      year,
+      make,
+      model,
+      service,
+      distance
+    } = req.body;
+
+    let total = parseFloat(service || 0);
+
+    // distance pricing
+    total += (distance || 0) * 3;
+
+    // vehicle age
+    const age = 2026 - parseInt(year || 0);
+
+    if (age > 15) total += 40;
+    else if (age > 10) total += 20;
+
+    // luxury brands
+    const luxury = ["bmw", "mercedes", "audi", "tesla"];
+    if (luxury.includes((make || "").toLowerCase())) {
+      total += 35;
+    }
+
+    // save estimate (optional but recommended)
+    const estimate = new Estimate({
+      year,
+      make,
+      model,
+      service,
+      distance,
+      estimate: total
+    });
+
+    await estimate.save();
+
+    res.json({
+      success: true,
+      estimate: total
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ---------------- START SERVER ----------------
 const PORT = process.env.PORT || 80;
 
