@@ -41,23 +41,23 @@ button {
 
 <h1>Job Estimate Calculator</h1>
 
-<!-- VIN -->
-<input id="vin" placeholder="VIN (optional - future feature)" />
+<!-- VIN (future use) -->
+<input id="vin" placeholder="VIN (optional)" />
 <button onclick="decodeVIN()">Decode VIN (coming soon)</button>
 
 <hr>
 
-<!-- Year Make Model -->
+<!-- Year / Make / Model -->
 <select id="year">
-  <option value="">Year</option>
+  <option value="">Select Year</option>
 </select>
 
 <select id="make">
-  <option value="">Make</option>
+  <option value="">Select Make</option>
 </select>
 
 <select id="model">
-  <option value="">Model</option>
+  <option value="">Select Model</option>
 </select>
 
 <hr>
@@ -80,9 +80,7 @@ button {
 </div>
 
 <script>
-/* --------------------------
-   BASIC YEAR POPULATION
----------------------------*/
+/* ---------------- YEAR DROPDOWN ---------------- */
 const yearSelect = document.getElementById("year");
 
 for (let y = 2026; y >= 1980; y--) {
@@ -92,39 +90,65 @@ for (let y = 2026; y >= 1980; y--) {
   yearSelect.appendChild(opt);
 }
 
-/* --------------------------
-   MAKE + MODEL PLACEHOLDERS
-   (we will connect API next step)
----------------------------*/
-const makes = ["Toyota", "Honda", "Ford", "BMW", "Mercedes"];
-
+/* ---------------- MAKE (REAL API) ---------------- */
 const makeSelect = document.getElementById("make");
 
-makes.forEach(m => {
-  const opt = document.createElement("option");
-  opt.value = m;
-  opt.textContent = m;
-  makeSelect.appendChild(opt);
-});
+async function loadMakes() {
+  try {
+    const res = await fetch(
+      "https://vpic.nhtsa.dot.gov/api/vehicles/GetAllMakes?format=json"
+    );
 
-document.getElementById("make").addEventListener("change", () => {
+    const data = await res.json();
 
-  const modelSelect = document.getElementById("model");
-  modelSelect.innerHTML = "";
+    data.Results.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item.Make_Name;
+      opt.textContent = item.Make_Name;
+      makeSelect.appendChild(opt);
+    });
 
-  const models = ["Model A", "Model B", "Model C"];
+  } catch (err) {
+    console.error("Error loading makes:", err);
+  }
+}
 
-  models.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.textContent = m;
-    modelSelect.appendChild(opt);
-  });
-});
+/* ---------------- MODEL (MAKE + YEAR) ---------------- */
+const modelSelect = document.getElementById("model");
 
-/* --------------------------
-   ESTIMATE LOGIC (FRONTEND)
----------------------------*/
+async function loadModels() {
+
+  const make = makeSelect.value;
+  const year = yearSelect.value;
+
+  if (!make || !year) return;
+
+  try {
+    const res = await fetch(
+      `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${make}/modelyear/${year}?format=json`
+    );
+
+    const data = await res.json();
+
+    modelSelect.innerHTML = '<option value="">Select Model</option>';
+
+    data.Results.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item.Model_Name;
+      opt.textContent = item.Model_Name;
+      modelSelect.appendChild(opt);
+    });
+
+  } catch (err) {
+    console.error("Error loading models:", err);
+  }
+}
+
+/* ---------------- EVENT LISTENERS ---------------- */
+makeSelect.addEventListener("change", loadModels);
+yearSelect.addEventListener("change", loadModels);
+
+/* ---------------- ESTIMATE LOGIC ---------------- */
 function calculate() {
 
   const service = parseFloat(document.getElementById("service").value);
@@ -134,12 +158,11 @@ function calculate() {
 
   let total = service;
 
-  // distance cost
+  // distance
   total += distance * 3;
 
-  // vehicle age surcharge
+  // age
   const age = 2026 - year;
-
   if (age > 15) total += 40;
   else if (age > 10) total += 20;
 
@@ -153,12 +176,13 @@ function calculate() {
     "Estimated Price: $" + total.toFixed(2);
 }
 
-/* --------------------------
-   VIN PLACEHOLDER
----------------------------*/
+/* ---------------- VIN PLACEHOLDER ---------------- */
 function decodeVIN() {
-  alert("We will connect VIN API next step");
+  alert("VIN decoding will be added in next step (Step 3)");
 }
+
+/* ---------------- INIT ---------------- */
+loadMakes();
 </script>
 
 </body>
