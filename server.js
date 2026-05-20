@@ -1,4 +1,4 @@
-require('dotenv').config(); // load .env variables
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -27,12 +27,25 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.log("MongoDB error:", err));
 
-// ---------------- MODEL ----------------
+// ---------------- MODELS ----------------
 const Request = mongoose.model("Request", {
   name: String,
   issue: String,
   time: Date
+});
 
+const Estimate = mongoose.model("Estimate", {
+  vin: String,
+  year: String,
+  make: String,
+  model: String,
+  service: String,
+  distance: Number,
+  estimate: Number,
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 
 // ---------------- AUTH ----------------
@@ -67,7 +80,7 @@ app.get("/testdb", async (req, res) => {
   }
 });
 
-// ---------------- API ----------------
+// ---------------- REQUESTS API ----------------
 
 // GET REQUESTS (protected)
 app.get("/api/requests", verifyToken, async (req, res) => {
@@ -82,8 +95,6 @@ app.get("/api/requests", verifyToken, async (req, res) => {
 // CREATE REQUEST (public)
 app.post("/request", async (req, res) => {
   try {
-    console.log("Incoming request:", req.body);
-
     const job = new Request({
       name: req.body.name,
       issue: req.body.issue,
@@ -92,13 +103,10 @@ app.post("/request", async (req, res) => {
 
     await job.save();
 
-    console.log("Saved request:", job);
-
     io.emit("new-request", job);
 
     res.json({ status: "saved", job });
   } catch (err) {
-    console.log("POST ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -118,11 +126,72 @@ app.delete("/api/requests/:id", verifyToken, async (req, res) => {
   }
 });
 
+// ---------------- ESTIMATE API ----------------
+
+// CREATE ESTIMATE (secure backend pricing)
+app.post("/api/estimate", async (req, res) => {
+  try {
+    const {
+      year,
+      make,
+      model,
+      service,
+      distance
+    } = req.body;
+
+    let total = Number(service || 0);
+
+    // distance pricing
+    total += (Number(distance) || 0) * 3;
+
+    // vehicle age pricing
+    const age = 2026 - Number(year || 0);
+
+    if (age > 15) total += 40;
+    else if (age > 10) total += 20;
+
+    // luxury surcharge
+    const luxury = ["bmw", "mercedes", "audi", "tesla"];
+    if (luxury.includes((make || "").toLowerCase())) {
+      total += 35;
+    }
+
+    const estimate = new Estimate({
+      year,
+      make,
+      model,
+      service,
+      distance,
+      estimate: total
+    });
+
+    await estimate.save();
+
+    res.json({
+      success: true,
+      estimate: total
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET ALL ESTIMATES (ADMIN)
+app.get("/api/estimates", verifyToken, async (req, res) => {
+  try {
+    const data = await Estimate.find().sort({ createdAt: -1 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---------------- LOGIN ----------------
 app.post("/admin/login", (req, res) => {
   const { password } = req.body;
 
-  if (password === "1113") {
+  if (password === process.env.ADMIN_PASSWORD) {
     const token = jwt.sign(
       { role: "admin" },
       JWT_SECRET,
@@ -227,74 +296,8 @@ app.get("/data", (req, res) => {
     </html>
   `);
 });
-const Estimate = mongoose.model("Estimate", {
-  vin: String,
-  year: String,
-  make: String,
-  model: String,
 
-  service: String,
-  distance: Number,
-
-  estimate: Number,
-
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-app.post("/api/estimate", async (req, res) => {
-  try {
-
-    const {
-      year,
-      make,
-      model,
-      service,
-      distance
-    } = req.body;
-
-    let total = parseFloat(service || 0);
-
-    // distance pricing
-    total += (distance || 0) * 3;
-
-    // vehicle age
-    const age = 2026 - parseInt(year || 0);
-
-    if (age > 15) total += 40;
-    else if (age > 10) total += 20;
-
-    // luxury brands
-    const luxury = ["bmw", "mercedes", "audi", "tesla"];
-    if (luxury.includes((make || "").toLowerCase())) {
-      total += 35;
-    }
-
-    // save estimate (optional but recommended)
-    const estimate = new Estimate({
-      year,
-      make,
-      model,
-      service,
-      distance,
-      estimate: total
-    });
-
-    await estimate.save();
-
-    res.json({
-      success: true,
-      estimate: total
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 // ---------------- START SERVER ----------------
-const PORT = process.env.PORT || 80;
-
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log("Server running on port", PORT);
 });
