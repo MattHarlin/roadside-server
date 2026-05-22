@@ -3,7 +3,7 @@ async function sendRequest() {
   const issue = document.getElementById("issue").value;
 
   try {
-    const res = await fetch("https://roadside-server.onrender.com/request", {
+    const res = await fetch("", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
