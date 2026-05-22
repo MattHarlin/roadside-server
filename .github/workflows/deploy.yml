@@ -1,0 +1,35 @@
+name: Deploy Roadside Server
+
+# Trigger this workflow on push to main branch
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Deploy via SSH
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}          # Your server's public IP
+          username: bms                             # Your server username
+          key: ${{ secrets.SERVER_SSH_KEY }}        # Your private key (github_actions_deploy)
+          script: |
+            # Go to project directory
+            cd /home/bms/roadside-server
+
+            # Pull latest changes from main
+            git pull origin main
+
+            # Restart the PM2 app
+            pm2 restart roadside-server || pm2 start server.js --name roadside-server
+
+            # Show PM2 status for verification
+            pm2 status
